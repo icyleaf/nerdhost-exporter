@@ -1,0 +1,24 @@
+[package]
+name = "nerdhost-exporter"
+version = "0.1.0"
+authors = ["icyleaf <icyleaf.cn@gmail.com>"]
+description = "A Prometheus Exporter for NerdHost SolusVM v1."
+edition = "2021"
+
+keywords = ["prometheus", "exporter", "bandwagon"]
+categories = ["database"]
+
+[dependencies]
+clap = { version = "4.1.11", features = ["derive", "env"] }
+
+hyper = { version = "0.14.20", features = ["full"] }
+hyper-rustls = "0.24.1"
+tokio = { version = "1", features = ["full"] }
+
+serde = "1.0.159"
+serde-xml-rs = "0.6.0"
+
+prometheus = "0.13.3"
+config = "0.13.3"
+lazy_static = "1.4.0"
+byte-unit = "4.0.19"

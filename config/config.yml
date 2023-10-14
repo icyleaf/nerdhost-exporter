@@ -1,0 +1,6 @@
+endpoint: https://nerdvm.racknerd.com
+nodes:
+  - api_key: 12345678
+    api_secret: 111111111111111111111111
+  - api_key: 12345678
+    api_secret: 111111111111111111111111
