@@ -10,6 +10,9 @@ use hyper::{
   Body, Request, Response, StatusCode
 };
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+
 async fn request_usages_info(client: SolusVM, node: Node) {
   let server_info = client.get_service_info(&node.api_key, &node.api_secret)
     .await
@@ -56,9 +59,12 @@ async fn serve_path(
   };
 
   if !is_get_method || req.uri().path() != command.metrics_path {
+    let body = format!("<h3>Prometheus Nerdhost Exporter version {} by {}.</h3><p>Path: <a href='/metrics'>/metrics</a></p>", VERSION, AUTHOR);
+
     Response::builder()
       .status(status)
-      .body(hyper::Body::from(status.canonical_reason().unwrap()))
+      .header(CONTENT_TYPE, "text/html")
+      .body(Body::from(body))
       .unwrap()
   } else {
     let body = reqest_metrics(&command).await;
