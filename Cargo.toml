@@ -9,7 +9,7 @@ keywords = ["prometheus", "exporter", "bandwagon"]
 categories = ["database"]
 
 [dependencies]
-clap = { version = "4.4.10", features = ["derive", "env"] }
+clap = { version = "4.4.11", features = ["derive", "env"] }
 
 hyper = { version = "1.0.1", features = ["full"] }
 hyper-rustls = "0.24.2"
