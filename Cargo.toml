@@ -11,7 +11,7 @@ categories = ["database"]
 [dependencies]
 clap = { version = "4.4.11", features = ["derive", "env"] }
 
-hyper = { version = "0.14.20", features = ["full"] }
+hyper = { version = "0.14.28", features = ["full"] }
 hyper-rustls = "0.24.2"
 tokio = { version = "1", features = ["full"] }
 
