@@ -19,6 +19,6 @@ serde = "1.0.196"
 serde-xml-rs = "0.6.0"
 
 prometheus = "0.13.3"
-config = "0.13.4"
+config = "0.14.0"
 lazy_static = "1.4.0"
 byte-unit = "5.1.4"
