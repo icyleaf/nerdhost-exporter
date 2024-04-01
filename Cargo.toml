@@ -12,7 +12,7 @@ categories = ["database"]
 clap = { version = "4.5.2", features = ["derive", "env"] }
 
 hyper = { version = "0.14.28", features = ["full"] }
-hyper-rustls = "0.24.2"
+hyper-rustls = "0.27.0"
 tokio = { version = "1", features = ["full"] }
 
 serde = "1.0.197"
