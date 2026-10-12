@@ -1,23 +1,59 @@
-mod configuration;
-mod nerdhost;
-mod metrics;
-mod server;
 mod command;
-use command::Command;
+mod configuration;
+mod metrics;
+mod nerdhost;
+mod scrape;
+mod server;
 
 use std::net::SocketAddr;
+use std::process::ExitCode;
+use std::sync::Arc;
+
 use clap::Parser;
 
-type MainResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+use command::Command;
+use configuration::Configuration;
+use nerdhost::{HttpTransport, NodeClient};
+use server::AppState;
 
 #[tokio::main]
-async fn main() -> MainResult<()> {
+async fn main() -> ExitCode {
   let command = Command::parse();
-  let addr: SocketAddr = command.metrics_server
-    .parse()
-    .expect("Unable to parse metrics server");
 
-  server::run_web_server(addr, command.clone()).await;
+  let addr: SocketAddr = match command.metrics_server.parse() {
+    Ok(addr) => addr,
+    Err(error) => {
+      eprintln!(
+        "metrics server {:?} is not a HOST:PORT address: {}",
+        command.metrics_server, error
+      );
+      return ExitCode::FAILURE;
+    }
+  };
 
-  Ok(())
+  let configuration = match Configuration::load(&command.config_path) {
+    Ok(configuration) => configuration,
+    Err(error) => {
+      eprintln!("configuration error: {}", error);
+      return ExitCode::FAILURE;
+    }
+  };
+
+  let client = Arc::new(NodeClient::new(
+    HttpTransport::new(),
+    configuration.endpoint.clone(),
+    configuration.node_timeout(),
+  ));
+
+  server::run_web_server(
+    addr,
+    AppState {
+      configuration,
+      metrics_path: command.metrics_path.clone(),
+      client,
+    },
+  )
+  .await;
+
+  ExitCode::SUCCESS
 }

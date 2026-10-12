@@ -1,105 +1,238 @@
-use crate::nerdhost::SolusVM;
-use crate::command::Command;
-use crate::configuration::{Configuration, Node};
-use crate::metrics;
-
 use std::net::SocketAddr;
-use hyper::{
-  service::{make_service_fn, service_fn},
-  http::header::CONTENT_TYPE,
-  Body, Request, Response, StatusCode
-};
+use std::sync::Arc;
+
+use hyper::http::header::CONTENT_TYPE;
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Method, Request, Response, StatusCode};
+
+use crate::configuration::Configuration;
+use crate::metrics;
+use crate::nerdhost::{NodeClient, Transport};
+use crate::scrape;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
-async fn request_usages_info(client: SolusVM, node: Node) {
-  let server_info = client.get_service_info(&node.api_key, &node.api_secret)
-    .await
-    .expect("Failes to fetch node info");
-
-  metrics::set_bandwith_total(&server_info);
-  metrics::set_bandwith_free(&server_info);
-  metrics::set_bandwith_used(&server_info);
-
-  metrics::set_disk_total(&server_info);
-  metrics::set_disk_free(&server_info);
-  metrics::set_disk_used(&server_info);
+/// Everything serving needs, resolved once at startup.
+pub struct AppState<T: Transport> {
+  pub configuration: Configuration,
+  pub metrics_path: String,
+  pub client: Arc<NodeClient<T>>,
 }
 
-async fn request_server_status(client: SolusVM, node: Node) {
-  let server_status = client.get_status(&node.api_key, &node.api_secret)
-    .await
-    .expect("Failes to fetch node status");
+/// One Scrape, rendered. The scrape module owns the polling; this only asks for it.
+async fn metrics_body<T: Transport + 'static>(state: &AppState<T>) -> Result<String, String> {
+  let nodes = state.configuration.credentials();
 
-  metrics::set_server_status(&server_status);
+  let result = scrape::run(
+    Arc::clone(&state.client),
+    &nodes,
+    state.configuration.max_concurrency,
+    state.configuration.scrape_deadline(),
+  )
+  .await;
+
+  metrics::render(&result).map_err(|error| error.to_string())
 }
 
-async fn reqest_metrics(command: &Command) -> String {
-  let config = Configuration::from(command).unwrap();
-  let client = SolusVM::new(config.endpoint);
+fn respond(status: StatusCode, content_type: &'static str, body: String) -> Response<Body> {
+  Response::builder()
+    .status(status)
+    .header(CONTENT_TYPE, content_type)
+    .body(Body::from(body))
+    .expect("a response with a static status and header cannot fail to build")
+}
 
-  for node in config.nodes {
-    tokio::spawn(request_usages_info(client.clone(), node.clone()));
-    tokio::spawn(request_server_status(client.clone(), node.clone()));
+pub async fn handle<T>(request: Request<Body>, state: Arc<AppState<T>>) -> Response<Body>
+where
+  T: Transport + 'static,
+{
+  let is_get = request.method() == Method::GET;
+
+  if !is_get || request.uri().path() != state.metrics_path {
+    let status = if is_get {
+      StatusCode::NOT_FOUND
+    } else {
+      StatusCode::METHOD_NOT_ALLOWED
+    };
+    let body = format!(
+      "<h3>Prometheus Nerdhost Exporter version {} by {}.</h3><p>Path: <a href='{}'>{}</a></p>",
+      VERSION, AUTHOR, state.metrics_path, state.metrics_path
+    );
+
+    return respond(status, "text/html", body);
   }
 
-  metrics::render_prometheus_text_data()
-}
-
-async fn serve_path(
-  req: Request<Body>,
-  command: Command) -> Response<Body> {
-
-  let is_get_method = req.method() == hyper::Method::GET;
-  let status = if is_get_method {
-    StatusCode::NOT_FOUND
-  } else {
-    StatusCode::METHOD_NOT_ALLOWED
-  };
-
-  if !is_get_method || req.uri().path() != command.metrics_path {
-    let body = format!("<h3>Prometheus Nerdhost Exporter version {} by {}.</h3><p>Path: <a href='/metrics'>/metrics</a></p>", VERSION, AUTHOR);
-
-    Response::builder()
-      .status(status)
-      .header(CONTENT_TYPE, "text/html")
-      .body(Body::from(body))
-      .unwrap()
-  } else {
-    let body = reqest_metrics(&command).await;
-
-    Response::builder()
-      .status(StatusCode::OK)
-      .header(CONTENT_TYPE, "text/plain")
-      .body(Body::from(body))
-      .unwrap()
+  match metrics_body(&state).await {
+    Ok(body) => respond(StatusCode::OK, "text/plain", body),
+    Err(render_error) => respond(
+      StatusCode::INTERNAL_SERVER_ERROR,
+      "text/plain",
+      format!("# scrape could not be rendered: {}\n", render_error),
+    ),
   }
 }
 
-pub async fn run_web_server(addr: SocketAddr, command: Command) {
-  let metrics_path = command.metrics_path.clone();
-  println!("Starting exporter on http://{}{}", addr, metrics_path);
-  let command = command.clone();
+pub async fn run_web_server<T>(addr: SocketAddr, state: AppState<T>)
+where
+  T: Transport + 'static,
+{
+  let state = Arc::new(state);
+  println!("Starting exporter on http://{}{}", addr, state.metrics_path);
 
   let make_service = make_service_fn(move |_| {
-    let command = command.clone();
+    let state = Arc::clone(&state);
 
     async move {
-      let func = move |req| {
-        let command = command.clone();
-        async move { Ok::<_, hyper::Error>(serve_path(req, command).await) }
-      };
-
-      Ok::<_, hyper::Error>(service_fn(func))
+      Ok::<_, hyper::Error>(service_fn(move |request| {
+        let state = Arc::clone(&state);
+        async move { Ok::<_, hyper::Error>(handle(request, state).await) }
+      }))
     }
-});
+  });
 
-  let server = hyper::Server::bind(&addr)
-    .serve(make_service);
+  let server = hyper::Server::bind(&addr).serve(make_service);
 
-  // Run this server for... forever!
   if let Err(e) = server.await {
-      eprintln!("server error: {}", e);
+    eprintln!("server error: {}", e);
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::configuration::Node;
+  use crate::nerdhost::testing::{status_body, usage_body, ScriptedTransport};
+  use crate::nerdhost::NodeError;
+  use std::time::Duration;
+
+  fn state<T: Transport + 'static>(client: NodeClient<T>, metrics_path: &str) -> Arc<AppState<T>> {
+    let configuration = Configuration {
+      endpoint: "https://nerdvm.example.com".to_string(),
+      node_timeout_seconds: 5,
+      scrape_deadline_seconds: 8,
+      max_concurrency: 8,
+      nodes: vec![Node {
+        api_key: "1".to_string(),
+        api_secret: "a".to_string(),
+        name: None,
+      }],
+    };
+
+    Arc::new(AppState {
+      configuration,
+      metrics_path: metrics_path.to_string(),
+      client: Arc::new(client),
+    })
+  }
+
+  fn healthy_client() -> NodeClient<ScriptedTransport> {
+    NodeClient::new(
+      ScriptedTransport::new(|url| {
+        let body = if url.contains("action=info") {
+          usage_body("vm12345", "1.2.3.4", 1195035440)
+        } else {
+          status_body("online")
+        };
+        (Ok(body), Duration::ZERO)
+      }),
+      "https://nerdvm.example.com",
+      Duration::from_millis(500),
+    )
+  }
+
+  #[tokio::test]
+  async fn the_metrics_path_answers_with_the_scrape_it_just_made() {
+    let state = state(healthy_client(), "/metrics");
+    let request = Request::builder()
+      .uri("/metrics")
+      .body(Body::empty())
+      .unwrap();
+
+    let response = handle(request, state).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+      response.headers()[CONTENT_TYPE].to_str().unwrap(),
+      "text/plain"
+    );
+
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let text = String::from_utf8(body.to_vec()).unwrap();
+
+    assert!(
+      text.contains("nerdhost_bandwidth_used{hostname=\"vm12345\"} 1195035440"),
+      "{}",
+      text
+    );
+    assert!(
+      text.contains("nerdhost_node_scrape_results{call=\"usage\",node=\"vm12345\",reason=\"\"} 1"),
+      "{}",
+      text
+    );
+  }
+
+  #[tokio::test]
+  async fn an_unreachable_node_still_answers_200_with_a_failure_series() {
+    let client = NodeClient::new(
+      ScriptedTransport::new(|_| {
+        (
+          Err(NodeError::Transport("connection refused".to_string())),
+          Duration::ZERO,
+        )
+      }),
+      "https://nerdvm.example.com",
+      Duration::from_millis(500),
+    );
+    let state = state(client, "/metrics");
+    let request = Request::builder()
+      .uri("/metrics")
+      .body(Body::empty())
+      .unwrap();
+
+    let response = handle(request, state).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let text = String::from_utf8(body.to_vec()).unwrap();
+
+    assert!(
+      text.contains(
+        "nerdhost_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
+      ),
+      "{}",
+      text
+    );
+  }
+
+  #[tokio::test]
+  async fn the_help_page_keeps_its_two_statuses() {
+    let state = state(healthy_client(), "/metrics");
+
+    let not_found = handle(
+      Request::builder()
+        .uri("/somewhere-else")
+        .body(Body::empty())
+        .unwrap(),
+      Arc::clone(&state),
+    )
+    .await;
+    assert_eq!(not_found.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+      not_found.headers()[CONTENT_TYPE].to_str().unwrap(),
+      "text/html"
+    );
+
+    let wrong_method = handle(
+      Request::builder()
+        .method("POST")
+        .uri("/metrics")
+        .body(Body::empty())
+        .unwrap(),
+      state,
+    )
+    .await;
+    assert_eq!(wrong_method.status(), StatusCode::METHOD_NOT_ALLOWED);
   }
 }

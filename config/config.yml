@@ -1,6 +1,14 @@
-endpoint: https://nerdvm.racknerd.com
+endpoint: https://ctrl.racknerd.com
+
+# Optional. These are the defaults.
+node_timeout_seconds: 5
+scrape_deadline_seconds: 8
+max_concurrency: 8
+
 nodes:
   - api_key: 12345678
     api_secret: 111111111111111111111111
-  - api_key: 12345678
-    api_secret: 111111111111111111111111
+    name: node1
+  - api_key: 87654321
+    api_secret: 222222222222222222222222
+    name: node2
