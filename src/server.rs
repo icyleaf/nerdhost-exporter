@@ -12,7 +12,7 @@ use hyper_util::rt::TokioIo;
 
 use crate::configuration::Configuration;
 use crate::metrics;
-use crate::nerdhost::{NodeClient, Transport};
+use crate::racknode::{NodeClient, Transport};
 use crate::scrape;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -64,7 +64,7 @@ where
       StatusCode::METHOD_NOT_ALLOWED
     };
     let body = format!(
-      "<h3>Prometheus Nerdhost Exporter version {} by {}.</h3><p>Path: <a href='{}'>{}</a></p>",
+      "<h3>Prometheus Racknode Exporter version {} by {}.</h3><p>Path: <a href='{}'>{}</a></p>",
       VERSION, AUTHOR, state.metrics_path, state.metrics_path
     );
 
@@ -117,14 +117,14 @@ where
 mod tests {
   use super::*;
   use crate::configuration::Node;
-  use crate::nerdhost::testing::{status_body, usage_body, ScriptedTransport};
-  use crate::nerdhost::NodeError;
+  use crate::racknode::testing::{status_body, usage_body, ScriptedTransport};
+  use crate::racknode::NodeError;
   use http_body_util::{BodyExt, Empty};
   use std::time::Duration;
 
   fn state<T: Transport + 'static>(client: NodeClient<T>, metrics_path: &str) -> Arc<AppState<T>> {
     let configuration = Configuration {
-      endpoint: "https://nerdvm.example.com".to_string(),
+      endpoint: "https://ctrl.example.com".to_string(),
       node_timeout_seconds: 5,
       scrape_deadline_seconds: 8,
       max_concurrency: 8,
@@ -152,7 +152,7 @@ mod tests {
         };
         (Ok(body), Duration::ZERO)
       }),
-      "https://nerdvm.example.com",
+      "https://ctrl.example.com",
       Duration::from_millis(500),
     )
   }
@@ -177,12 +177,12 @@ mod tests {
     let text = String::from_utf8(body.to_vec()).unwrap();
 
     assert!(
-      text.contains("nerdhost_bandwidth_used{hostname=\"vm12345\"} 1195035440"),
+      text.contains("racknode_bandwidth_used{hostname=\"vm12345\",node=\"vm12345\"} 1195035440"),
       "{}",
       text
     );
     assert!(
-      text.contains("nerdhost_node_scrape_results{call=\"usage\",node=\"vm12345\",reason=\"\"} 1"),
+      text.contains("racknode_node_scrape_results{call=\"usage\",node=\"vm12345\",reason=\"\"} 1"),
       "{}",
       text
     );
@@ -197,7 +197,7 @@ mod tests {
           Duration::ZERO,
         )
       }),
-      "https://nerdvm.example.com",
+      "https://ctrl.example.com",
       Duration::from_millis(500),
     );
     let state = state(client, "/metrics");
@@ -215,7 +215,7 @@ mod tests {
 
     assert!(
       text.contains(
-        "nerdhost_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
+        "racknode_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
       ),
       "{}",
       text

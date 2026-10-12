@@ -1,7 +1,7 @@
 mod command;
 mod configuration;
 mod metrics;
-mod nerdhost;
+mod racknode;
 mod scrape;
 mod server;
 
@@ -13,7 +13,7 @@ use clap::Parser;
 
 use command::Command;
 use configuration::Configuration;
-use nerdhost::{HttpTransport, NodeClient};
+use racknode::{HttpTransport, NodeClient};
 use server::AppState;
 
 #[tokio::main]

@@ -567,23 +567,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
-name = "nerdhost-exporter"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "clap",
- "config",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "prometheus",
- "serde",
- "serde-xml-rs",
- "tokio",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -703,6 +686,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "racknode-exporter"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "clap",
+ "config",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "prometheus",
+ "serde",
+ "serde-xml-rs",
+ "tokio",
 ]
 
 [[package]]

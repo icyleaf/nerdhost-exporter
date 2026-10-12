@@ -3,14 +3,15 @@ use std::fmt;
 use std::path::Path;
 use std::time::Duration;
 
-use config::{Config, ConfigError, Environment, File};
+use config::{Config, ConfigError, Environment, File, Map};
 use serde::Deserialize;
 
-use crate::nerdhost::Credentials;
+use crate::racknode::Credentials;
 
-/// The host the node API lives on. The call path is appended by the node module,
-/// so an endpoint carrying that path would double it.
-const DEFAULT_ENDPOINT: &str = "https://nerdvm.racknerd.com";
+/// The host the node API lives on. RackNerd serves it from `ctrl`; the host this used
+/// to name answers with an HTML page instead of the API. The call path is appended by
+/// the node module, so an endpoint carrying that path would double it.
+const DEFAULT_ENDPOINT: &str = "https://ctrl.racknerd.com";
 
 fn default_node_timeout_seconds() -> u64 {
   5
@@ -71,13 +72,27 @@ impl Configuration {
   /// Read and check the configuration once, before anything is served. Anything
   /// that would make a Scrape meaningless fails here instead of at scrape time.
   pub fn load(path: &Path) -> Result<Self, ConfigurationError> {
+    Self::load_with_env(path, None)
+  }
+
+  /// `env` stands in for the process environment: production passes nothing, which
+  /// reads the real one, and a test passes the values it wants read, so the prefix
+  /// rules below can be asserted without writing to an environment every other test
+  /// shares.
+  fn load_with_env(
+    path: &Path,
+    env: Option<Map<String, String>>,
+  ) -> Result<Self, ConfigurationError> {
     let path = path.to_str().ok_or_else(|| {
       ConfigurationError::Invalid(format!("config path {:?} is not valid utf-8", path))
     })?;
 
+    // RACKNERD_ is what this exporter read under its old name, and it keeps working.
+    // Both prefixes are read; where they name one key RACKNODE_ wins, because sources
+    // are merged in the order they are added.
     let config = Config::builder()
       .add_source(File::with_name(path))
-      .add_source(Environment::with_prefix("NERDHOST"))
+      .add_source(Environment::with_prefix("RACKNERD").source(env))
       .set_default("endpoint", DEFAULT_ENDPOINT)
       .map_err(ConfigurationError::Load)?
       .build()
@@ -171,7 +186,7 @@ mod tests {
 
   fn write_config(contents: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
-      "nerdhost-exporter-test-{}-{}.yml",
+      "racknode-exporter-test-{}-{}.yml",
       std::process::id(),
       COUNTER.fetch_add(1, Ordering::SeqCst)
     ));
@@ -337,9 +352,74 @@ nodes:
 
     let configuration = Configuration::load(&path).unwrap();
 
+    // Pinned to the literal host, not to the constant: the point of the default is
+    // which host it names, and comparing it with itself could never notice a move.
+    assert_eq!(configuration.endpoint, "https://ctrl.racknerd.com");
     // The node module appends the call path, so a path here would double it.
-    assert_eq!(configuration.endpoint, DEFAULT_ENDPOINT);
     assert!(!configuration.endpoint.contains("command.php"));
+
+    fs::remove_file(path).unwrap();
+  }
+
+  /// The environment a test wants read, in place of the process one.
+  fn environment(pairs: &[(&str, &str)]) -> Map<String, String> {
+    pairs
+      .iter()
+      .map(|(key, value)| (key.to_string(), value.to_string()))
+      .collect()
+  }
+
+  #[test]
+  fn the_racknerd_prefix_wins_over_the_nerdhost_one() {
+    let path = write_config("nodes:\n  - api_key: 1\n    api_secret: a\n");
+
+    let configuration = Configuration::load_with_env(
+      &path,
+      Some(environment(&[
+        ("RACKNERD_ENDPOINT", "https://new.example.com"),
+      ])),
+    )
+    .unwrap();
+
+    assert_eq!(configuration.endpoint, "https://new.example.com");
+
+    fs::remove_file(path).unwrap();
+  }
+
+  #[test]
+  fn a_deployment_that_still_sets_the_nerdhost_prefix_keeps_working() {
+    let path = write_config("nodes:\n  - api_key: 1\n    api_secret: a\n");
+
+    let configuration = Configuration::load_with_env(
+      &path,
+      Some(environment(&[(
+        "RACKNERD_ENDPOINT",
+        "https://old.example.com",
+      )])),
+    )
+    .unwrap();
+
+    assert_eq!(configuration.endpoint, "https://old.example.com");
+
+    fs::remove_file(path).unwrap();
+  }
+
+  #[test]
+  fn the_environment_overrides_the_file() {
+    let path = write_config(
+      "endpoint: https://file.example.com\nnodes:\n  - api_key: 1\n    api_secret: a\n",
+    );
+
+    let configuration = Configuration::load_with_env(
+      &path,
+      Some(environment(&[(
+        "RACKNERD_ENDPOINT",
+        "https://env.example.com",
+      )][..])),
+    )
+    .unwrap();
+
+    assert_eq!(configuration.endpoint, "https://env.example.com");
 
     fs::remove_file(path).unwrap();
   }

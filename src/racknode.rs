@@ -428,7 +428,7 @@ mod tests {
   ) -> NodeClient<ScriptedTransport> {
     NodeClient::new(
       ScriptedTransport::new(script),
-      "https://nerdvm.example.com/",
+      "https://ctrl.example.com/",
       Duration::from_millis(timeout_ms),
     )
   }
@@ -523,11 +523,11 @@ mod tests {
 
     assert_eq!(
       client.url(&credentials(), "info", "&bw=true&hdd=true&mem=true&ipaddr=true"),
-      "https://nerdvm.example.com/api/client/command.php?key=12345678&hash=abcdef&action=info&bw=true&hdd=true&mem=true&ipaddr=true"
+      "https://ctrl.example.com/api/client/command.php?key=12345678&hash=abcdef&action=info&bw=true&hdd=true&mem=true&ipaddr=true"
     );
     assert_eq!(
       client.url(&credentials(), "status", ""),
-      "https://nerdvm.example.com/api/client/command.php?key=12345678&hash=abcdef&action=status"
+      "https://ctrl.example.com/api/client/command.php?key=12345678&hash=abcdef&action=status"
     );
   }
 
@@ -546,7 +546,7 @@ mod tests {
     // Sent raw, the `+` reaches the API as a space and the key is refused.
     assert_eq!(
       client.url(&credentials, "status", ""),
-      "https://nerdvm.example.com/api/client/command.php?key=key%2Bwith%2Fsyntax&hash=a%2Bb%2Fc%3Dd%20e%26f&action=status"
+      "https://ctrl.example.com/api/client/command.php?key=key%2Bwith%2Fsyntax&hash=a%2Bb%2Fc%3Dd%20e%26f&action=status"
     );
   }
 
@@ -616,7 +616,7 @@ mod tests {
     let urls = transport.urls();
     let client = NodeClient::new(
       transport,
-      "https://nerdvm.example.com",
+      "https://ctrl.example.com",
       Duration::from_millis(500),
     );
 

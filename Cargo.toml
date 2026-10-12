@@ -1,15 +1,15 @@
 [package]
-name = "nerdhost-exporter"
+name = "racknode-exporter"
 version = "0.1.0"
 authors = ["icyleaf <icyleaf.cn@gmail.com>"]
-description = "A Prometheus Exporter for NerdHost SolusVM v1."
+description = "A Prometheus Exporter for RackNerd's VPS nodes"
 edition = "2021"
 # The lowest toolchain the locked dependencies can build on: hyper-util and
 # hyper-rustls have moved to edition 2024, which puts the floor at 1.85. The
 # Dockerfile builds the image on a newer stable than this.
 rust-version = "1.85"
 
-keywords = ["prometheus", "exporter", "nerdhost", "solusvm"]
+keywords = ["prometheus", "exporter", "racknode", "solusvm"]
 categories = ["database"]
 
 [dependencies]

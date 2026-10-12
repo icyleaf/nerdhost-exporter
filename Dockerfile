@@ -44,14 +44,14 @@ RUN RUST_TARGET="$(cat /tmp/rusttarget)" && \
     CC="$(cat /tmp/musl)-gcc" \
     RUSTFLAGS="-C linker=$CC" \
     cargo build --target "$RUST_TARGET" --release && \
-    mv target/$RUST_TARGET/release/nerdhost-exporter target/release/
+    mv target/$RUST_TARGET/release/racknode-exporter target/release/
 
 FROM alpine:3.17
 RUN apk add --no-cache --update tini
 
-COPY --from=builder /workspace/target/release/nerdhost-exporter /usr/bin/nerdhost-exporter
+COPY --from=builder /workspace/target/release/racknode-exporter /usr/bin/racknode-exporter
 
 EXPOSE 9103/tcp
 
-ENTRYPOINT ["/sbin/tini", "--", "/usr/bin/nerdhost-exporter"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/bin/racknode-exporter"]
 CMD [ "--help" ]
