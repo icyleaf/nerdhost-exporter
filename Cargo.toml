@@ -1,5 +1,5 @@
 [package]
-name = "racknode-exporter"
+name = "racknerd-exporter"
 version = "0.1.0"
 authors = ["icyleaf <icyleaf.cn@gmail.com>"]
 description = "A Prometheus Exporter for RackNerd's VPS nodes"
@@ -9,7 +9,7 @@ edition = "2021"
 # Dockerfile builds the image on a newer stable than this.
 rust-version = "1.85"
 
-keywords = ["prometheus", "exporter", "racknode", "solusvm"]
+keywords = ["prometheus", "exporter", "racknerd", "solusvm"]
 categories = ["database"]
 
 [dependencies]

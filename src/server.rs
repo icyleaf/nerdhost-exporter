@@ -12,7 +12,7 @@ use hyper_util::rt::TokioIo;
 
 use crate::configuration::Configuration;
 use crate::metrics;
-use crate::racknode::{NodeClient, Transport};
+use crate::racknerd::{NodeClient, Transport};
 use crate::scrape;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -64,7 +64,7 @@ where
       StatusCode::METHOD_NOT_ALLOWED
     };
     let body = format!(
-      "<h3>Prometheus Racknode Exporter version {} by {}.</h3><p>Path: <a href='{}'>{}</a></p>",
+      "<h3>Prometheus Racknerd Exporter version {} by {}.</h3><p>Path: <a href='{}'>{}</a></p>",
       VERSION, AUTHOR, state.metrics_path, state.metrics_path
     );
 
@@ -117,8 +117,8 @@ where
 mod tests {
   use super::*;
   use crate::configuration::Node;
-  use crate::racknode::testing::{status_body, usage_body, ScriptedTransport};
-  use crate::racknode::NodeError;
+  use crate::racknerd::testing::{status_body, usage_body, ScriptedTransport};
+  use crate::racknerd::NodeError;
   use http_body_util::{BodyExt, Empty};
   use std::time::Duration;
 
@@ -177,12 +177,12 @@ mod tests {
     let text = String::from_utf8(body.to_vec()).unwrap();
 
     assert!(
-      text.contains("racknode_bandwidth_used{hostname=\"vm12345\",node=\"vm12345\"} 1195035440"),
+      text.contains("racknerd_bandwidth_used{hostname=\"vm12345\",node=\"vm12345\"} 1195035440"),
       "{}",
       text
     );
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"usage\",node=\"vm12345\",reason=\"\"} 1"),
+      text.contains("racknerd_node_scrape_results{call=\"usage\",node=\"vm12345\",reason=\"\"} 1"),
       "{}",
       text
     );
@@ -215,7 +215,7 @@ mod tests {
 
     assert!(
       text.contains(
-        "racknode_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
+        "racknerd_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
       ),
       "{}",
       text

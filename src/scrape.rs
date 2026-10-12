@@ -6,7 +6,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::time::{timeout_at, Instant};
 
-use crate::racknode::{Credentials, NodeClient, NodeError, StatusSample, Transport, UsageSample};
+use crate::racknerd::{Credentials, NodeClient, NodeError, StatusSample, Transport, UsageSample};
 
 /// The two calls a Scrape makes per Node. They answer independently, so each has
 /// its own outcome: a Node can report its usage and fail to report its status.
@@ -236,8 +236,8 @@ fn log_failure(identity: &NodeIdentity, call: Call, error: &NodeError) {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::racknode::testing::{status_body, usage_body, ScriptedTransport};
-  use crate::racknode::{BoxFuture, Usage};
+  use crate::racknerd::testing::{status_body, usage_body, ScriptedTransport};
+  use crate::racknerd::{BoxFuture, Usage};
   use std::sync::Mutex;
 
   fn credentials(key: &str) -> Credentials {

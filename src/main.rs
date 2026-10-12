@@ -1,7 +1,7 @@
 mod command;
 mod configuration;
 mod metrics;
-mod racknode;
+mod racknerd;
 mod scrape;
 mod server;
 
@@ -13,7 +13,7 @@ use clap::Parser;
 
 use command::Command;
 use configuration::Configuration;
-use racknode::{HttpTransport, NodeClient};
+use racknerd::{HttpTransport, NodeClient};
 use server::AppState;
 
 #[tokio::main]

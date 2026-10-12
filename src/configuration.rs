@@ -6,11 +6,10 @@ use std::time::Duration;
 use config::{Config, ConfigError, Environment, File, Map};
 use serde::Deserialize;
 
-use crate::racknode::Credentials;
+use crate::racknerd::Credentials;
 
-/// The host the node API lives on. RackNerd serves it from `ctrl`; the host this used
-/// to name answers with an HTML page instead of the API. The call path is appended by
-/// the node module, so an endpoint carrying that path would double it.
+/// The host the node API lives on. The call path is appended by the node module,
+/// so an endpoint carrying that path would double it.
 const DEFAULT_ENDPOINT: &str = "https://ctrl.racknerd.com";
 
 fn default_node_timeout_seconds() -> u64 {
@@ -87,9 +86,10 @@ impl Configuration {
       ConfigurationError::Invalid(format!("config path {:?} is not valid utf-8", path))
     })?;
 
-    // RACKNERD_ is what this exporter read under its old name, and it keeps working.
-    // Both prefixes are read; where they name one key RACKNODE_ wins, because sources
-    // are merged in the order they are added.
+    // The old exporter name still works as a fallback prefix, so existing deployments
+    // do not need to re-tag their variables. Both prefixes are read; where they name
+    // one key the new exporter prefix wins, because sources are merged in the order
+    // they are added.
     let config = Config::builder()
       .add_source(File::with_name(path))
       .add_source(Environment::with_prefix("RACKNERD").source(env))
@@ -186,7 +186,7 @@ mod tests {
 
   fn write_config(contents: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!(
-      "racknode-exporter-test-{}-{}.yml",
+      "racknerd-exporter-test-{}-{}.yml",
       std::process::id(),
       COUNTER.fetch_add(1, Ordering::SeqCst)
     ));
@@ -370,14 +370,15 @@ nodes:
   }
 
   #[test]
-  fn the_racknerd_prefix_wins_over_the_nerdhost_one() {
+  fn the_racknerd_prefix_wins_over_the_old_exporter_prefix() {
     let path = write_config("nodes:\n  - api_key: 1\n    api_secret: a\n");
 
     let configuration = Configuration::load_with_env(
       &path,
-      Some(environment(&[
-        ("RACKNERD_ENDPOINT", "https://new.example.com"),
-      ])),
+      Some(environment(&[(
+        "RACKNERD_ENDPOINT",
+        "https://new.example.com",
+      )])),
     )
     .unwrap();
 
@@ -387,7 +388,7 @@ nodes:
   }
 
   #[test]
-  fn a_deployment_that_still_sets_the_nerdhost_prefix_keeps_working() {
+  fn a_deployment_that_still_sets_the_old_exporter_prefix_keeps_working() {
     let path = write_config("nodes:\n  - api_key: 1\n    api_secret: a\n");
 
     let configuration = Configuration::load_with_env(
@@ -412,10 +413,9 @@ nodes:
 
     let configuration = Configuration::load_with_env(
       &path,
-      Some(environment(&[(
-        "RACKNERD_ENDPOINT",
-        "https://env.example.com",
-      )][..])),
+      Some(environment(
+        &[("RACKNERD_ENDPOINT", "https://env.example.com")][..],
+      )),
     )
     .unwrap();
 

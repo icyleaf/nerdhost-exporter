@@ -16,48 +16,48 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
   // carries `node` beside it, so series can be joined to each other on `node` alone.
   let node_info = IntGaugeVec::new(
     Opts::new(
-      "racknode_node_info",
+      "racknerd_node_info",
       "Node identity and image as the node API reports it. Always 1.",
     ),
     &["node", "hostname", "ipaddress", "template", "os"],
   )?;
 
   let bandwidth_total = IntGaugeVec::new(
-    Opts::new("racknode_bandwidth_total", "Bandwidth total in bytes"),
+    Opts::new("racknerd_bandwidth_total", "Bandwidth total in bytes"),
     &["node", "hostname"],
   )?;
   let bandwidth_free = IntGaugeVec::new(
-    Opts::new("racknode_bandwidth_free", "Bandwidth free in bytes"),
+    Opts::new("racknerd_bandwidth_free", "Bandwidth free in bytes"),
     &["node", "hostname"],
   )?;
   let bandwidth_used = IntGaugeVec::new(
-    Opts::new("racknode_bandwidth_used", "Bandwidth used in bytes"),
+    Opts::new("racknerd_bandwidth_used", "Bandwidth used in bytes"),
     &["node", "hostname"],
   )?;
 
   let disk_total = IntGaugeVec::new(
-    Opts::new("racknode_disk_total", "Disk total in bytes"),
+    Opts::new("racknerd_disk_total", "Disk total in bytes"),
     &["node", "hostname"],
   )?;
   let disk_free = IntGaugeVec::new(
-    Opts::new("racknode_disk_free", "Disk free in bytes"),
+    Opts::new("racknerd_disk_free", "Disk free in bytes"),
     &["node", "hostname"],
   )?;
   let disk_used = IntGaugeVec::new(
-    Opts::new("racknode_disk_used", "Disk used in bytes"),
+    Opts::new("racknerd_disk_used", "Disk used in bytes"),
     &["node", "hostname"],
   )?;
 
   let memory_total = IntGaugeVec::new(
-    Opts::new("racknode_memory_total", "Memory total in bytes"),
+    Opts::new("racknerd_memory_total", "Memory total in bytes"),
     &["node", "hostname"],
   )?;
   let memory_free = IntGaugeVec::new(
-    Opts::new("racknode_memory_free", "Memory free in bytes"),
+    Opts::new("racknerd_memory_free", "Memory free in bytes"),
     &["node", "hostname"],
   )?;
   let memory_used = IntGaugeVec::new(
-    Opts::new("racknode_memory_used", "Memory used in bytes"),
+    Opts::new("racknerd_memory_used", "Memory used in bytes"),
     &["node", "hostname"],
   )?;
 
@@ -65,21 +65,21 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
   // publishes it as it arrived rather than recomputing a different one.
   let bandwidth_used_percent = IntGaugeVec::new(
     Opts::new(
-      "racknode_bandwidth_used_percent",
+      "racknerd_bandwidth_used_percent",
       "Bandwidth used, in percent of the total",
     ),
     &["node", "hostname"],
   )?;
   let disk_used_percent = IntGaugeVec::new(
     Opts::new(
-      "racknode_disk_used_percent",
+      "racknerd_disk_used_percent",
       "Disk used, in percent of the total",
     ),
     &["node", "hostname"],
   )?;
   let memory_used_percent = IntGaugeVec::new(
     Opts::new(
-      "racknode_memory_used_percent",
+      "racknerd_memory_used_percent",
       "Memory used, in percent of the total",
     ),
     &["node", "hostname"],
@@ -89,7 +89,7 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
   // vanish from the metrics; the count under `node` is the only other trace of it.
   let node_up = IntGaugeVec::new(
     Opts::new(
-      "racknode_node_up",
+      "racknerd_node_up",
       "1 when every call for the node answered in this Scrape, 0 otherwise",
     ),
     &["node"],
@@ -97,7 +97,7 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
 
   let server_status = IntGaugeVec::new(
     Opts::new(
-      "racknode_server_status",
+      "racknerd_server_status",
       "Server status: 1 when online, 0 otherwise",
     ),
     &["node", "hostname", "vm_status"],
@@ -105,7 +105,7 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
 
   let scrape_results = IntGaugeVec::new(
     Opts::new(
-      "racknode_node_scrape_results",
+      "racknerd_node_scrape_results",
       "Node calls that ended this way in this Scrape. reason is empty when the call answered.",
     ),
     &["node", "call", "reason"],
@@ -242,7 +242,7 @@ fn boxed(gauge: &IntGaugeVec) -> Box<dyn prometheus::core::Collector> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::racknode::{NodeError, StatusSample, Usage, UsageSample};
+  use crate::racknerd::{NodeError, StatusSample, Usage, UsageSample};
   use crate::scrape::NodeSample;
 
   const HOSTNAME: &str = "vm12345";
@@ -334,32 +334,32 @@ mod tests {
     };
 
     assert!(text.contains(&format!(
-      "racknode_node_info{{hostname=\"{}\",ipaddress=\"1.2.3.4\",node=\"{}\",os=\"Debian 10 64 Bit\",template=\"linux-debian-10-x86_64-gen2-v1\"}} 1",
+      "racknerd_node_info{{hostname=\"{}\",ipaddress=\"1.2.3.4\",node=\"{}\",os=\"Debian 10 64 Bit\",template=\"linux-debian-10-x86_64-gen2-v1\"}} 1",
       HOSTNAME, HOSTNAME
     )));
-    assert!(text.contains(&series("racknode_bandwidth_total", 50000)));
-    assert!(text.contains(&series("racknode_bandwidth_used", 1000)));
-    assert!(text.contains(&series("racknode_bandwidth_free", 40000)));
-    assert!(text.contains(&series("racknode_bandwidth_used_percent", 10)));
-    assert!(text.contains(&series("racknode_disk_total", 10000)));
-    assert!(text.contains(&series("racknode_disk_used", 3000)));
-    assert!(text.contains(&series("racknode_disk_free", 7000)));
-    assert!(text.contains(&series("racknode_disk_used_percent", 30)));
-    assert!(text.contains(&series("racknode_memory_total", 20000)));
-    assert!(text.contains(&series("racknode_memory_used", 5000)));
-    assert!(text.contains(&series("racknode_memory_free", 15000)));
-    assert!(text.contains(&series("racknode_memory_used_percent", 25)));
-    assert!(text.contains(&format!("racknode_node_up{{node=\"{}\"}} 1", HOSTNAME)));
+    assert!(text.contains(&series("racknerd_bandwidth_total", 50000)));
+    assert!(text.contains(&series("racknerd_bandwidth_used", 1000)));
+    assert!(text.contains(&series("racknerd_bandwidth_free", 40000)));
+    assert!(text.contains(&series("racknerd_bandwidth_used_percent", 10)));
+    assert!(text.contains(&series("racknerd_disk_total", 10000)));
+    assert!(text.contains(&series("racknerd_disk_used", 3000)));
+    assert!(text.contains(&series("racknerd_disk_free", 7000)));
+    assert!(text.contains(&series("racknerd_disk_used_percent", 30)));
+    assert!(text.contains(&series("racknerd_memory_total", 20000)));
+    assert!(text.contains(&series("racknerd_memory_used", 5000)));
+    assert!(text.contains(&series("racknerd_memory_free", 15000)));
+    assert!(text.contains(&series("racknerd_memory_used_percent", 25)));
+    assert!(text.contains(&format!("racknerd_node_up{{node=\"{}\"}} 1", HOSTNAME)));
     assert!(text.contains(&format!(
-      "racknode_server_status{{hostname=\"{}\",node=\"{}\",vm_status=\"online\"}} 1",
+      "racknerd_server_status{{hostname=\"{}\",node=\"{}\",vm_status=\"online\"}} 1",
       HOSTNAME, HOSTNAME
     )));
     assert!(text.contains(&format!(
-      "racknode_node_scrape_results{{call=\"usage\",node=\"{}\",reason=\"\"}} 1",
+      "racknerd_node_scrape_results{{call=\"usage\",node=\"{}\",reason=\"\"}} 1",
       HOSTNAME
     )));
     assert!(text.contains(&format!(
-      "racknode_node_scrape_results{{call=\"status\",node=\"{}\",reason=\"\"}} 1",
+      "racknerd_node_scrape_results{{call=\"status\",node=\"{}\",reason=\"\"}} 1",
       HOSTNAME
     )));
   }
@@ -377,21 +377,21 @@ mod tests {
     let text = render(&result).unwrap();
 
     assert!(text
-      .contains("racknode_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"api\"} 1"));
+      .contains("racknerd_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"api\"} 1"));
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"status\",node=\"node-0\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"status\",node=\"node-0\",reason=\"\"} 1")
     );
 
     // No hostname ever came back, so there is nothing to report usage or status under.
-    assert!(!text.contains("racknode_bandwidth_total"), "{}", text);
-    assert!(!text.contains("racknode_memory_total"), "{}", text);
-    assert!(!text.contains("racknode_server_status"), "{}", text);
-    assert!(!text.contains("racknode_node_info"), "{}", text);
+    assert!(!text.contains("racknerd_bandwidth_total"), "{}", text);
+    assert!(!text.contains("racknerd_memory_total"), "{}", text);
+    assert!(!text.contains("racknerd_server_status"), "{}", text);
+    assert!(!text.contains("racknerd_node_info"), "{}", text);
 
     // The node itself is still reported, so a failure never leaves a gap where a
     // node should be.
     assert!(
-      text.contains("racknode_node_up{node=\"node-0\"} 0"),
+      text.contains("racknerd_node_up{node=\"node-0\"} 0"),
       "{}",
       text
     );
@@ -411,13 +411,13 @@ mod tests {
 
     // The status call answered, and it is still counted.
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"status\",node=\"node-0\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"status\",node=\"node-0\",reason=\"\"} 1")
     );
-    assert!(!text.contains("racknode_server_status"), "{}", text);
+    assert!(!text.contains("racknerd_server_status"), "{}", text);
 
     // Half a node is not an up node.
     assert!(
-      text.contains("racknode_node_up{node=\"node-0\"} 0"),
+      text.contains("racknerd_node_up{node=\"node-0\"} 0"),
       "{}",
       text
     );
@@ -440,21 +440,21 @@ mod tests {
     let text = render(&result).unwrap();
 
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"usage\",node=\"vm-a\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"usage\",node=\"vm-a\",reason=\"\"} 1")
     );
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"usage\",node=\"vm-c\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"usage\",node=\"vm-c\",reason=\"\"} 1")
     );
     assert!(text
-      .contains("racknode_node_scrape_results{call=\"usage\",node=\"node-1\",reason=\"api\"} 1"));
+      .contains("racknerd_node_scrape_results{call=\"usage\",node=\"node-1\",reason=\"api\"} 1"));
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"status\",node=\"vm-a\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"status\",node=\"vm-a\",reason=\"\"} 1")
     );
     assert!(
-      text.contains("racknode_node_scrape_results{call=\"status\",node=\"vm-c\",reason=\"\"} 1")
+      text.contains("racknerd_node_scrape_results{call=\"status\",node=\"vm-c\",reason=\"\"} 1")
     );
     assert!(text
-      .contains("racknode_node_scrape_results{call=\"status\",node=\"node-1\",reason=\"api\"} 1"));
+      .contains("racknerd_node_scrape_results{call=\"status\",node=\"node-1\",reason=\"api\"} 1"));
 
     // Three nodes, so six calls in total.
     let counted: i64 = [2, 1, 2, 1].iter().sum();
@@ -480,7 +480,7 @@ mod tests {
     // The previous Scrape's series are gone, rather than accumulating.
     assert!(!text.contains("vm-a"), "{}", text);
     assert!(text.contains(
-      "racknode_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
+      "racknerd_node_scrape_results{call=\"usage\",node=\"node-0\",reason=\"transport\"} 1"
     ));
   }
 
@@ -504,7 +504,7 @@ mod tests {
 
       let text = render(&result).unwrap();
       let expected = format!(
-        "racknode_node_scrape_results{{call=\"usage\",node=\"node-0\",reason=\"{}\"}} 1",
+        "racknerd_node_scrape_results{{call=\"usage\",node=\"node-0\",reason=\"{}\"}} 1",
         reason
       );
       assert!(text.contains(&expected), "missing {}", expected);
@@ -517,64 +517,64 @@ mod tests {
 
     let expected = [
       format!(
-        "racknode_node_info{{hostname=\"{}\",ipaddress=\"{}\",node=\"{}\",os=\"{}\",template=\"{}\"}} 1",
+        "racknerd_node_info{{hostname=\"{}\",ipaddress=\"{}\",node=\"{}\",os=\"{}\",template=\"{}\"}} 1",
         HOSTNAME, IPADDRESS, NAME, OS, TEMPLATE
       ),
       format!(
-        "racknode_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
+        "racknerd_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_bandwidth_free{{hostname=\"{}\",node=\"{}\"}} 40000",
+        "racknerd_bandwidth_free{{hostname=\"{}\",node=\"{}\"}} 40000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_bandwidth_used{{hostname=\"{}\",node=\"{}\"}} 1000",
+        "racknerd_bandwidth_used{{hostname=\"{}\",node=\"{}\"}} 1000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_bandwidth_used_percent{{hostname=\"{}\",node=\"{}\"}} 10",
+        "racknerd_bandwidth_used_percent{{hostname=\"{}\",node=\"{}\"}} 10",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_disk_total{{hostname=\"{}\",node=\"{}\"}} 10000",
+        "racknerd_disk_total{{hostname=\"{}\",node=\"{}\"}} 10000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_disk_free{{hostname=\"{}\",node=\"{}\"}} 7000",
+        "racknerd_disk_free{{hostname=\"{}\",node=\"{}\"}} 7000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_disk_used{{hostname=\"{}\",node=\"{}\"}} 3000",
+        "racknerd_disk_used{{hostname=\"{}\",node=\"{}\"}} 3000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_disk_used_percent{{hostname=\"{}\",node=\"{}\"}} 30",
+        "racknerd_disk_used_percent{{hostname=\"{}\",node=\"{}\"}} 30",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_memory_total{{hostname=\"{}\",node=\"{}\"}} 20000",
+        "racknerd_memory_total{{hostname=\"{}\",node=\"{}\"}} 20000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_memory_free{{hostname=\"{}\",node=\"{}\"}} 15000",
+        "racknerd_memory_free{{hostname=\"{}\",node=\"{}\"}} 15000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_memory_used{{hostname=\"{}\",node=\"{}\"}} 5000",
+        "racknerd_memory_used{{hostname=\"{}\",node=\"{}\"}} 5000",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_memory_used_percent{{hostname=\"{}\",node=\"{}\"}} 25",
+        "racknerd_memory_used_percent{{hostname=\"{}\",node=\"{}\"}} 25",
         HOSTNAME, NAME
       ),
       format!(
-        "racknode_server_status{{hostname=\"{}\",node=\"{}\",vm_status=\"online\"}} 1",
+        "racknerd_server_status{{hostname=\"{}\",node=\"{}\",vm_status=\"online\"}} 1",
         HOSTNAME, NAME
       ),
       // The family that was already keyed by node, for comparison: one identity
       // name across everything a node reports.
-      format!("racknode_node_up{{node=\"{}\"}} 1", NAME),
+      format!("racknerd_node_up{{node=\"{}\"}} 1", NAME),
     ];
 
     for line in expected {
@@ -590,13 +590,13 @@ mod tests {
     // which is what makes the usage series joinable to node_up.
     assert!(
       text.contains(&format!(
-        "racknode_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
+        "racknerd_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
         HOSTNAME, HOSTNAME
       )),
       "{}",
       text
     );
-    assert!(text.contains(&format!("racknode_node_up{{node=\"{}\"}} 1", HOSTNAME)));
+    assert!(text.contains(&format!("racknerd_node_up{{node=\"{}\"}} 1", HOSTNAME)));
   }
 
   #[test]
@@ -614,7 +614,7 @@ mod tests {
     for name in ["alpha", "beta"] {
       assert!(
         text.contains(&format!(
-          "racknode_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
+          "racknerd_bandwidth_total{{hostname=\"{}\",node=\"{}\"}} 50000",
           HOSTNAME, name
         )),
         "{}",
@@ -633,13 +633,13 @@ mod tests {
     // The call answered, so its figures are reported even though the node cannot be
     // named by hostname: the configured name, or the position, still attributes it.
     assert!(
-      text.contains("racknode_bandwidth_total{hostname=\"\",node=\"node-0\"} 50000"),
+      text.contains("racknerd_bandwidth_total{hostname=\"\",node=\"node-0\"} 50000"),
       "{}",
       text
     );
     assert!(
       text.contains(&format!(
-        "racknode_bandwidth_total{{hostname=\"\",node=\"{}\"}} 50000",
+        "racknerd_bandwidth_total{{hostname=\"\",node=\"{}\"}} 50000",
         NAME
       )),
       "{}",
