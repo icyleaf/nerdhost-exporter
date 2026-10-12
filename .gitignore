@@ -1,2 +1,7 @@
 target/
 config/*.local.*
+# A working config holds live API credentials. Local ones live beside the
+# checked-in examples, so keep them out of the index.
+/config.yml
+/config.json
+/config.toml

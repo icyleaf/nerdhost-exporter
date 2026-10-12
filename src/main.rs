@@ -45,7 +45,7 @@ async fn main() -> ExitCode {
     configuration.node_timeout(),
   ));
 
-  server::run_web_server(
+  let served = server::run_web_server(
     addr,
     AppState {
       configuration,
@@ -55,5 +55,11 @@ async fn main() -> ExitCode {
   )
   .await;
 
-  ExitCode::SUCCESS
+  match served {
+    Ok(()) => ExitCode::SUCCESS,
+    Err(error) => {
+      eprintln!("server error: {}", error);
+      ExitCode::FAILURE
+    }
+  }
 }

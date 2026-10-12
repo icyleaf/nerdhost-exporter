@@ -219,7 +219,9 @@ pub fn render(result: &ScrapeResult) -> Result<String, prometheus::Error> {
 
   for ((node_label, call, reason), count) in results {
     scrape_results
-      .with_label_values(&[&node_label, call.as_str(), reason])
+      // One element type for the whole slice: prometheus 0.14 takes `&[V]` with a
+      // single `V: AsRef<str>`, so mixing `&String` with `&str` does not infer.
+      .with_label_values(&[node_label.as_str(), call.as_str(), reason])
       .set(count);
   }
 

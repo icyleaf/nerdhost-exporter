@@ -4,21 +4,31 @@ version = "0.1.0"
 authors = ["icyleaf <icyleaf.cn@gmail.com>"]
 description = "A Prometheus Exporter for NerdHost SolusVM v1."
 edition = "2021"
+# The lowest toolchain the locked dependencies can build on: hyper-util and
+# hyper-rustls have moved to edition 2024, which puts the floor at 1.85. The
+# Dockerfile builds the image on a newer stable than this.
+rust-version = "1.85"
 
-keywords = ["prometheus", "exporter", "bandwagon"]
+keywords = ["prometheus", "exporter", "nerdhost", "solusvm"]
 categories = ["database"]
 
 [dependencies]
-clap = { version = "4.5.18", features = ["derive", "env"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 
-hyper = { version = "0.14.29", features = ["full"] }
-hyper-rustls = "0.27.3"
-tokio = { version = "1", features = ["full"] }
+hyper = { version = "1.12", features = ["http1", "server"] }
+# hyper-rustls 0.27 is built for hyper 1, and its own client carries the TLS.
+# ring is chosen over the default aws-lc-rs so the image build stays free of cmake
+# and C cross-compilation.
+hyper-rustls = { version = "0.27.3", default-features = false, features = ["http1", "logging", "native-tokio", "ring", "tls12"] }
+hyper-util = { version = "0.1.7", features = ["client-legacy", "http1", "tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+tokio = { version = "1.53.2", features = ["full"] }
 
-serde = "1.0.210"
-serde-xml-rs = "0.6.0"
+# `derive` is declared here rather than borrowed from whichever dependency happened
+# to enable it: the envelopes and the configuration are all derived.
+serde = { version = "1.0.210", features = ["derive"] }
+serde-xml-rs = "0.8.2"
 
-prometheus = "0.13.4"
-config = "0.14.0"
-lazy_static = "1.5.0"
-byte-unit = "5.1.4"
+prometheus = "0.14.0"
+config = "0.15.27"

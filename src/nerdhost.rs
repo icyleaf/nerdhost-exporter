@@ -3,16 +3,19 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
-use hyper::client::connect::HttpConnector;
-use hyper::{Body, Client};
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
 use hyper_rustls::HttpsConnector;
+use hyper_util::client::legacy::connect::HttpConnector;
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 use serde::Deserialize;
 
 /// Every node API call hangs off this path.
 const API_PATH: &str = "/api/client/command.php";
 
-/// A boxed future, written out by hand because the toolchain pinned in the
-/// Dockerfile (rustc 1.70) predates `async fn` in traits.
+/// A boxed future, written out by hand so `Transport` stays object-safe: a future
+/// returned by `async fn` in a trait cannot be dispatched through a trait object.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Why a call to the node API did not produce its part of a Node sample.
@@ -65,21 +68,24 @@ pub trait Transport: Send + Sync {
   fn get<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<String, NodeError>>;
 }
 
-/// The production adapter: HTTPS over the native root store.
+/// The production adapter: HTTPS over the native root store. hyper-rustls 0.27
+/// speaks hyper 1, so this is a hyper-util client while the server beside it still
+/// serves through hyper 0.14: two majors, and the lock carries both.
 pub struct HttpTransport {
-  client: Client<HttpsConnector<HttpConnector>, Body>,
+  client: Client<HttpsConnector<HttpConnector>, Empty<Bytes>>,
 }
 
 impl HttpTransport {
   pub fn new() -> Self {
     let https = hyper_rustls::HttpsConnectorBuilder::new()
       .with_native_roots()
+      .expect("the host has no native certificate store, so no HTTPS could be trusted")
       .https_only()
       .enable_http1()
       .build();
 
     HttpTransport {
-      client: Client::builder().build(https),
+      client: Client::builder(TokioExecutor::new()).build(https),
     }
   }
 }
@@ -104,9 +110,12 @@ impl Transport for HttpTransport {
         .map_err(|e| NodeError::Transport(e.to_string()))?;
 
       let status = response.status();
-      let bytes = hyper::body::to_bytes(response.into_body())
+      let bytes = response
+        .into_body()
+        .collect()
         .await
-        .map_err(|e| NodeError::Transport(e.to_string()))?;
+        .map_err(|e| NodeError::Transport(e.to_string()))?
+        .to_bytes();
 
       if !status.is_success() {
         return Err(NodeError::Transport(format!("HTTP {}", status)));

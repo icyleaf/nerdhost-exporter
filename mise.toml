@@ -1,0 +1,5 @@
+[tools]
+# The same version the Dockerfile pins, so local work and the published image build
+# on one toolchain. It is newer than the crate's rust-version on purpose: that one is
+# the oldest rustc the locked dependencies can build on, this one is what ships.
+rust = "1.93"

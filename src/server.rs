@@ -1,9 +1,14 @@
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use hyper::http::header::CONTENT_TYPE;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, StatusCode};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::header::CONTENT_TYPE;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Method, Request, Response, StatusCode};
+use hyper_util::rt::TokioIo;
 
 use crate::configuration::Configuration;
 use crate::metrics;
@@ -35,15 +40,18 @@ async fn metrics_body<T: Transport + 'static>(state: &AppState<T>) -> Result<Str
   metrics::render(&result).map_err(|error| error.to_string())
 }
 
-fn respond(status: StatusCode, content_type: &'static str, body: String) -> Response<Body> {
+fn respond(status: StatusCode, content_type: &'static str, body: String) -> Response<Full<Bytes>> {
   Response::builder()
     .status(status)
     .header(CONTENT_TYPE, content_type)
-    .body(Body::from(body))
+    .body(Full::new(Bytes::from(body)))
     .expect("a response with a static status and header cannot fail to build")
 }
 
-pub async fn handle<T>(request: Request<Body>, state: Arc<AppState<T>>) -> Response<Body>
+/// The request body is never read, so this stays generic over it: the server hands
+/// it the `Incoming` body of a served connection, and a test can hand it any body it
+/// can build.
+pub async fn handle<T, B>(request: Request<B>, state: Arc<AppState<T>>) -> Response<Full<Bytes>>
 where
   T: Transport + 'static,
 {
@@ -73,28 +81,35 @@ where
   }
 }
 
-pub async fn run_web_server<T>(addr: SocketAddr, state: AppState<T>)
+/// Serves until the process is stopped. A port that cannot be taken is reported to
+/// the caller instead of being swallowed, so the process can exit non-zero.
+pub async fn run_web_server<T>(addr: SocketAddr, state: AppState<T>) -> std::io::Result<()>
 where
   T: Transport + 'static,
 {
   let state = Arc::new(state);
   println!("Starting exporter on http://{}{}", addr, state.metrics_path);
 
-  let make_service = make_service_fn(move |_| {
+  let listener = tokio::net::TcpListener::bind(addr).await?;
+
+  loop {
+    let (stream, _) = listener.accept().await?;
     let state = Arc::clone(&state);
 
-    async move {
-      Ok::<_, hyper::Error>(service_fn(move |request| {
+    // One task per connection: a slow client must not hold up the next scrape.
+    tokio::spawn(async move {
+      let service = service_fn(move |request| {
         let state = Arc::clone(&state);
-        async move { Ok::<_, hyper::Error>(handle(request, state).await) }
-      }))
-    }
-  });
+        async move { Ok::<_, Infallible>(handle(request, state).await) }
+      });
 
-  let server = hyper::Server::bind(&addr).serve(make_service);
-
-  if let Err(e) = server.await {
-    eprintln!("server error: {}", e);
+      if let Err(error) = http1::Builder::new()
+        .serve_connection(TokioIo::new(stream), service)
+        .await
+      {
+        eprintln!("connection error: {}", error);
+      }
+    });
   }
 }
 
@@ -104,6 +119,7 @@ mod tests {
   use crate::configuration::Node;
   use crate::nerdhost::testing::{status_body, usage_body, ScriptedTransport};
   use crate::nerdhost::NodeError;
+  use http_body_util::{BodyExt, Empty};
   use std::time::Duration;
 
   fn state<T: Transport + 'static>(client: NodeClient<T>, metrics_path: &str) -> Arc<AppState<T>> {
@@ -146,7 +162,7 @@ mod tests {
     let state = state(healthy_client(), "/metrics");
     let request = Request::builder()
       .uri("/metrics")
-      .body(Body::empty())
+      .body(Empty::<Bytes>::new())
       .unwrap();
 
     let response = handle(request, state).await;
@@ -157,7 +173,7 @@ mod tests {
       "text/plain"
     );
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
     let text = String::from_utf8(body.to_vec()).unwrap();
 
     assert!(
@@ -187,14 +203,14 @@ mod tests {
     let state = state(client, "/metrics");
     let request = Request::builder()
       .uri("/metrics")
-      .body(Body::empty())
+      .body(Empty::<Bytes>::new())
       .unwrap();
 
     let response = handle(request, state).await;
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
     let text = String::from_utf8(body.to_vec()).unwrap();
 
     assert!(
@@ -213,7 +229,7 @@ mod tests {
     let not_found = handle(
       Request::builder()
         .uri("/somewhere-else")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap(),
       Arc::clone(&state),
     )
@@ -228,7 +244,7 @@ mod tests {
       Request::builder()
         .method("POST")
         .uri("/metrics")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap(),
       state,
     )
